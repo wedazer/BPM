@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analyse BPM</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 2rem; display: grid; place-items: start center; gap: 2rem; }
+    .card { width: min(800px, 92vw); border: 1px solid #9993; border-radius: 12px; padding: 1.25rem; backdrop-filter: blur(6px); }
+    h1 { margin: 0 0 0.5rem; font-size: 1.6rem; }
+    p { margin-top: 0; opacity: .8; }
+    label { font-weight: 600; }
+    input[type="url"], input[type="file"] { width: 100%; margin: .5rem 0 1rem; padding: .7rem .8rem; border-radius: 10px; border: 1px solid #9996; }
+    button { padding: .7rem 1rem; border-radius: 10px; border: 1px solid transparent; background: #4f46e5; color: white; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .row { display: flex; gap: .75rem; align-items: center; }
+    .result { font-size: 1.2rem; font-weight: 700; }
+    code { padding: .2rem .4rem; background: #00000010; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Détection automatique multi-plateformes</h1>
+    <p>Collez un lien (YouTube, TikTok, Instagram, Twitter, MP4, MP3, etc.)</p>
+    <label for="url">URL</label>
+    <input id="url" type="url" placeholder="https://..." />
+    <div class="row">
+      <button id="analyzeUrl">Analyser le lien</button>
+      <span id="statusUrl"></span>
+    </div>
+    <div id="resultUrl" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h1>Analyser un fichier</h1>
+    <label for="file">Choisir un fichier (mp3, wav, mp4, etc.)</label>
+    <input id="file" type="file" />
+    <div class="row">
+      <button id="analyzeFile">Analyser le fichier</button>
+      <span id="statusFile"></span>
+    </div>
+    <div id="resultFile" class="result"></div>
+  </div>
+
+  <script>
+    const API = (location.origin.includes('localhost') || location.origin.includes('127.0.0.1'))
+      ? 'http://127.0.0.1:8000' // local dev
+      : (location.origin); // if hosted together behind a proxy
+
+    async function ping() {
+      try {
+        const r = await fetch(`${API}/status`);
+        if (!r.ok) throw new Error('offline');
+      } catch(e) {
+        console.warn('Backend /status unreachable:', e);
+      }
+    }
+    ping();
+
+    const $ = (id) => document.getElementById(id);
+
+    $('analyzeUrl').addEventListener('click', async () => {
+      const url = $('url').value.trim();
+      $('statusUrl').textContent = 'Analyse en cours...';
+      $('analyzeUrl').disabled = true;
+      $('resultUrl').textContent = '';
+      try {
+        const r = await fetch(`${API}/bpm/url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await r.json();
+        if (data.bpm) {
+          $('resultUrl').textContent = `BPM: ${data.bpm}` + (data.confidence !== undefined ? ` (fiabilité ~ ${Math.round(data.confidence*100)}%)` : '');
+        } else if (data.error) {
+          $('resultUrl').textContent = `Erreur: ${data.error}${data.details ? ' — ' + data.details : ''}`;
+        } else {
+          $('resultUrl').textContent = 'Réponse inattendue.';
+        }
+      } catch (e) {
+        $('resultUrl').textContent = 'Erreur réseau.';
+      } finally {
+        $('statusUrl').textContent = '';
+        $('analyzeUrl').disabled = false;
+      }
+    });
+
+    $('analyzeFile').addEventListener('click', async () => {
+      const f = $('file').files[0];
+      if (!f) return;
+      $('statusFile').textContent = 'Analyse en cours...';
+      $('analyzeFile').disabled = true;
+      $('resultFile').textContent = '';
+      try {
+        const fd = new FormData();
+        fd.append('file', f);
+        const r = await fetch(`${API}/bpm/upload`, { method: 'POST', body: fd });
+        const data = await r.json();
+        if (data.bpm) {
+          $('resultFile').textContent = `BPM: ${data.bpm}` + (data.confidence !== undefined ? ` (fiabilité ~ ${Math.round(data.confidence*100)}%)` : '');
+        } else if (data.error) {
+          $('resultFile').textContent = `Erreur: ${data.error}${data.details ? ' — ' + data.details : ''}`;
+        } else {
+          $('resultFile').textContent = 'Réponse inattendue.';
+        }
+      } catch (e) {
+        $('resultFile').textContent = 'Erreur réseau.';
+      } finally {
+        $('statusFile').textContent = '';
+        $('analyzeFile').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

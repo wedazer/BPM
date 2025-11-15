@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: site-bpm-backend
+    env: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /status
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 8000
