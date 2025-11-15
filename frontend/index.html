@@ -46,7 +46,7 @@
   <script>
     const API = (location.origin.includes('localhost') || location.origin.includes('127.0.0.1'))
       ? 'http://127.0.0.1:8000' // local dev
-      : (location.origin); // if hosted together behind a proxy
+      : 'https://site-bpm-backend.onrender.com'; // production backend
 
     async function ping() {
       try {
