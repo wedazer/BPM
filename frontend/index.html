@@ -6,41 +6,97 @@
   <title>Analyse BPM</title>
   <style>
     :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 2rem; display: grid; place-items: start center; gap: 2rem; }
-    .card { width: min(800px, 92vw); border: 1px solid #9993; border-radius: 12px; padding: 1.25rem; backdrop-filter: blur(6px); }
-    h1 { margin: 0 0 0.5rem; font-size: 1.6rem; }
-    p { margin-top: 0; opacity: .8; }
-    label { font-weight: 600; }
-    input[type="url"], input[type="file"] { width: 100%; margin: .5rem 0 1rem; padding: .7rem .8rem; border-radius: 10px; border: 1px solid #9996; }
-    button { padding: .7rem 1rem; border-radius: 10px; border: 1px solid transparent; background: #4f46e5; color: white; font-weight: 600; cursor: pointer; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      margin: 0; min-height: 100svh; display: grid; place-items: center;
+      background: radial-gradient(1200px 600px at 10% -10%, #a78bfa44 0%, #0000 60%),
+                  radial-gradient(1200px 600px at 110% 110%, #60a5fa44 0%, #0000 60%),
+                  linear-gradient(180deg, #0b1020, #0e1222);
+      color: #e6e8ee;
+      padding: 24px;
+    }
+    .container { width: min(980px, 96vw); display: grid; gap: 20px; }
+    .header { display: flex; align-items: center; justify-content: space-between; }
+    .title { font-size: 28px; font-weight: 800; letter-spacing: .3px; }
+    .subtitle { opacity: .8; font-size: 14px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    @media (min-width: 880px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .card {
+      border: 1px solid #ffffff1a; background: #0f1426cc; backdrop-filter: blur(8px);
+      border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px #00000040;
+    }
+    h1 { margin: 0 0 6px; font-size: 18px; }
+    p { margin: 0 0 12px; opacity: .85; }
+    label { font-weight: 600; font-size: 14px; }
+    input[type="url"], input[type="file"] {
+      width: 100%; margin: 8px 0 14px; padding: 12px 14px; border-radius: 12px;
+      border: 1px solid #ffffff26; background: #0c1122; color: #e6e8ee;
+      outline: none;
+    }
+    input[type="url"]:focus { border-color: #818cf8; box-shadow: 0 0 0 3px #6366f11f; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button {
+      padding: 10px 14px; border-radius: 12px; border: 1px solid #4f46e5;
+      background: linear-gradient(180deg, #6366f1, #4f46e5); color: white; font-weight: 700;
+      cursor: pointer; transition: transform .06s ease, filter .2s;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:active { transform: translateY(1px); }
+    button.ghost { background: transparent; border-color: #ffffff33; color: #e6e8ee; }
     button:disabled { opacity: .6; cursor: not-allowed; }
-    .row { display: flex; gap: .75rem; align-items: center; }
-    .result { font-size: 1.2rem; font-weight: 700; }
-    code { padding: .2rem .4rem; background: #00000010; border-radius: 6px; }
+    .result { font-size: 16px; font-weight: 700; margin-top: 8px; min-height: 24px; }
+    .status { font-size: 13px; opacity: .8; min-height: 20px; }
+    .progress { width: 100%; height: 10px; background: #ffffff12; border-radius: 999px; overflow: hidden; margin-top: 8px; display: none; }
+    .bar { height: 100%; width: 0%; background: linear-gradient(90deg, #22d3ee, #818cf8); box-shadow: 0 0 12px #22d3ee80; transition: width .2s ease; }
+    .eta { font-size: 12px; opacity: .75; margin-top: 6px; display: none; }
+    .footer { opacity: .65; font-size: 12px; text-align: center; margin-top: 8px; }
+    .badge { font-size: 12px; padding: 4px 8px; border: 1px solid #ffffff22; border-radius: 999px; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Détection automatique multi-plateformes</h1>
-    <p>Collez un lien (YouTube, TikTok, Instagram, Twitter, MP4, MP3, etc.)</p>
-    <label for="url">URL</label>
-    <input id="url" type="url" placeholder="https://..." />
-    <div class="row">
-      <button id="analyzeUrl">Analyser le lien</button>
-      <span id="statusUrl"></span>
+  <div class="container">
+    <div class="header">
+      <div>
+        <div class="title">Analyse BPM</div>
+        <div class="subtitle">Collez un lien (YouTube, TikTok, Instagram, Twitter, MP4, MP3, etc.) ou uploadez un fichier.</div>
+      </div>
+      <div class="badge">Multi-plateformes</div>
     </div>
-    <div id="resultUrl" class="result"></div>
-  </div>
 
-  <div class="card">
-    <h1>Analyser un fichier</h1>
-    <label for="file">Choisir un fichier (mp3, wav, mp4, etc.)</label>
-    <input id="file" type="file" />
-    <div class="row">
-      <button id="analyzeFile">Analyser le fichier</button>
-      <span id="statusFile"></span>
+    <div class="grid">
+      <div class="card">
+        <h1>Analyse d'un lien</h1>
+        <p>Détecte automatiquement la source et extrait l'audio.</p>
+        <label for="url">URL</label>
+        <input id="url" type="url" placeholder="https://..." />
+        <div class="row">
+          <button id="analyzeUrl">Analyser le lien</button>
+          <button id="clearUrl" class="ghost">Effacer</button>
+          <span id="statusUrl" class="status"></span>
+        </div>
+        <div id="progUrl" class="progress"><div class="bar" id="barUrl"></div></div>
+        <div id="etaUrl" class="eta"></div>
+        <div id="resultUrl" class="result"></div>
+      </div>
+
+      <div class="card">
+        <h1>Analyse d'un fichier</h1>
+        <p>Accepte mp3, wav, aac, m4a, mp4, etc.</p>
+        <label for="file">Fichier</label>
+        <input id="file" type="file" />
+        <div class="row">
+          <button id="analyzeFile">Analyser le fichier</button>
+          <button id="clearFile" class="ghost">Effacer</button>
+          <span id="statusFile" class="status"></span>
+        </div>
+        <div id="progFile" class="progress"><div class="bar" id="barFile"></div></div>
+        <div id="etaFile" class="eta"></div>
+        <div id="resultFile" class="result"></div>
+      </div>
     </div>
-    <div id="resultFile" class="result"></div>
+
+    <div class="footer">Backend: status <span id="statusPing">…</span></div>
   </div>
 
   <script>
@@ -52,19 +108,67 @@
       try {
         const r = await fetch(`${API}/status`);
         if (!r.ok) throw new Error('offline');
+        document.getElementById('statusPing').textContent = 'OK';
       } catch(e) {
         console.warn('Backend /status unreachable:', e);
+        document.getElementById('statusPing').textContent = 'indisponible';
       }
     }
     ping();
 
     const $ = (id) => document.getElementById(id);
 
+    function formatETA(sec) {
+      sec = Math.max(0, Math.ceil(sec));
+      if (sec < 60) return `${sec}s restantes`;
+      const m = Math.floor(sec / 60), s = sec % 60;
+      return `${m}m ${s}s restants`;
+    }
+
+    function startProgress(prefix, typicalSeconds = 14) {
+      const bar = $(`bar${prefix}`);
+      const wrap = $(`prog${prefix}`);
+      const eta = $(`eta${prefix}`);
+      wrap.style.display = 'block';
+      eta.style.display = 'block';
+      const start = performance.now();
+      let raf = null, running = true;
+      function tick() {
+        if (!running) return;
+        const elapsed = (performance.now() - start) / 1000;
+        // cap at 95% to keep some headroom until completion
+        const pct = Math.min(95, (elapsed / typicalSeconds) * 100);
+        bar.style.width = `${pct}%`;
+        eta.textContent = formatETA(typicalSeconds - elapsed);
+        raf = requestAnimationFrame(tick);
+      }
+      tick();
+      return {
+        done: () => {
+          running = false;
+          if (raf) cancelAnimationFrame(raf);
+          bar.style.width = '100%';
+          eta.textContent = 'Terminé';
+          setTimeout(() => { wrap.style.display = 'none'; eta.style.display = 'none'; bar.style.width = '0%'; }, 1200);
+        },
+        fail: () => {
+          running = false;
+          if (raf) cancelAnimationFrame(raf);
+          eta.textContent = 'Échec';
+          setTimeout(() => { wrap.style.display = 'none'; eta.style.display = 'none'; bar.style.width = '0%'; }, 1500);
+        }
+      };
+    }
+
     $('analyzeUrl').addEventListener('click', async () => {
       const url = $('url').value.trim();
-      $('statusUrl').textContent = 'Analyse en cours...';
+      if (!url) { $('statusUrl').textContent = 'Veuillez entrer une URL.'; return; }
+      $('statusUrl').textContent = 'Analyse en cours…';
       $('analyzeUrl').disabled = true;
+      $('clearUrl').disabled = true;
+      $('url').disabled = true;
       $('resultUrl').textContent = '';
+      const prog = startProgress('Url', 16);
       try {
         const r = await fetch(`${API}/bpm/url`, {
           method: 'POST',
@@ -74,25 +178,35 @@
         const data = await r.json();
         if (data.bpm) {
           $('resultUrl').textContent = `BPM: ${data.bpm}` + (data.confidence !== undefined ? ` (fiabilité ~ ${Math.round(data.confidence*100)}%)` : '');
+          prog.done();
         } else if (data.error) {
           $('resultUrl').textContent = `Erreur: ${data.error}${data.details ? ' — ' + data.details : ''}`;
+          prog.fail();
         } else {
           $('resultUrl').textContent = 'Réponse inattendue.';
+          prog.fail();
         }
       } catch (e) {
         $('resultUrl').textContent = 'Erreur réseau.';
+        prog.fail();
       } finally {
         $('statusUrl').textContent = '';
         $('analyzeUrl').disabled = false;
+        $('clearUrl').disabled = false;
+        $('url').disabled = false;
       }
     });
+    $('clearUrl').addEventListener('click', () => { $('url').value = ''; $('resultUrl').textContent = ''; $('statusUrl').textContent = ''; });
 
     $('analyzeFile').addEventListener('click', async () => {
       const f = $('file').files[0];
-      if (!f) return;
-      $('statusFile').textContent = 'Analyse en cours...';
+      if (!f) { $('statusFile').textContent = 'Veuillez choisir un fichier.'; return; }
+      $('statusFile').textContent = 'Analyse en cours…';
       $('analyzeFile').disabled = true;
+      $('clearFile').disabled = true;
+      $('file').disabled = true;
       $('resultFile').textContent = '';
+      const prog = startProgress('File', 12);
       try {
         const fd = new FormData();
         fd.append('file', f);
@@ -100,18 +214,25 @@
         const data = await r.json();
         if (data.bpm) {
           $('resultFile').textContent = `BPM: ${data.bpm}` + (data.confidence !== undefined ? ` (fiabilité ~ ${Math.round(data.confidence*100)}%)` : '');
+          prog.done();
         } else if (data.error) {
           $('resultFile').textContent = `Erreur: ${data.error}${data.details ? ' — ' + data.details : ''}`;
+          prog.fail();
         } else {
           $('resultFile').textContent = 'Réponse inattendue.';
+          prog.fail();
         }
       } catch (e) {
         $('resultFile').textContent = 'Erreur réseau.';
+        prog.fail();
       } finally {
         $('statusFile').textContent = '';
         $('analyzeFile').disabled = false;
+        $('clearFile').disabled = false;
+        $('file').disabled = false;
       }
     });
+    $('clearFile').addEventListener('click', () => { $('file').value = ''; $('resultFile').textContent = ''; $('statusFile').textContent = ''; });
   </script>
 </body>
 </html>
