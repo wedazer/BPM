@@ -94,7 +94,7 @@ def _http_download(url: str, out_path: Path) -> tuple[bool, str]:
             "Accept": "*/*",
         }
         # timeout=(connect, read)
-        with requests.get(url, headers=headers, stream=True, timeout=(6, 24)) as r:
+        with requests.get(url, headers=headers, stream=True, timeout=(4, 12)) as r:
             r.raise_for_status()
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "wb") as f:
@@ -104,6 +104,25 @@ def _http_download(url: str, out_path: Path) -> tuple[bool, str]:
         return True, ""
     except Exception as e:
         return False, str(e)
+
+
+def _preflight_head(url: str) -> tuple[bool, str, dict]:
+    """Quick HEAD check to avoid long hangs on slow/blocked hosts."""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            "Accept": "*/*",
+        }
+        r = requests.head(url, headers=headers, allow_redirects=True, timeout=(3, 5))
+        if r.status_code >= 400:
+            return False, f"HTTP {r.status_code}", {}
+        info = {
+            "content_type": r.headers.get("Content-Type", ""),
+            "content_length": r.headers.get("Content-Length", ""),
+        }
+        return True, "", info
+    except Exception as e:
+        return False, str(e), {}
 
 
 def _ensure_wav(input_path: Path, out_wav: Path) -> tuple[bool, str]:
@@ -163,10 +182,13 @@ async def bpm_from_url(body: URLBody):
 
         try:
             if _is_direct_media(url):
+                ok_h, err_h, info = _preflight_head(url)
+                if not ok_h:
+                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": f"Pré-vérification échouée: {err_h}"}
                 download_path = workdir / "input"
                 ok, err = _http_download(url, download_path)
                 if not ok:
-                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": err}
+                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": f"Téléchargement direct: {err}"}
                 ok, err = _ensure_wav(download_path, out_wav)
                 if not ok:
                     if "FFmpeg" in err:
