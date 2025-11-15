@@ -72,6 +72,7 @@
         <input id="url" type="url" placeholder="https://..." />
         <div class="row">
           <button id="analyzeUrl">Analyser le lien</button>
+          <button id="cancelUrl" class="ghost">Annuler</button>
           <button id="clearUrl" class="ghost">Effacer</button>
           <span id="statusUrl" class="status"></span>
         </div>
@@ -87,6 +88,7 @@
         <input id="file" type="file" />
         <div class="row">
           <button id="analyzeFile">Analyser le fichier</button>
+          <button id="cancelFile" class="ghost">Annuler</button>
           <button id="clearFile" class="ghost">Effacer</button>
           <span id="statusFile" class="status"></span>
         </div>
@@ -125,7 +127,7 @@
       return `${m}m ${s}s restants`;
     }
 
-    function startProgress(prefix, typicalSeconds = 14) {
+    function startProgress(prefix, typicalSeconds = 35) {
       const bar = $(`bar${prefix}`);
       const wrap = $(`prog${prefix}`);
       const eta = $(`eta${prefix}`);
@@ -139,7 +141,8 @@
         // cap at 95% to keep some headroom until completion
         const pct = Math.min(95, (elapsed / typicalSeconds) * 100);
         bar.style.width = `${pct}%`;
-        eta.textContent = formatETA(typicalSeconds - elapsed);
+        const remain = typicalSeconds - elapsed;
+        eta.textContent = remain <= 0 ? 'Toujours en cours…' : formatETA(remain);
         raf = requestAnimationFrame(tick);
       }
       tick();
@@ -160,21 +163,33 @@
       };
     }
 
+    let urlController = null;
+    let fileController = null;
+
     $('analyzeUrl').addEventListener('click', async () => {
       const url = $('url').value.trim();
       if (!url) { $('statusUrl').textContent = 'Veuillez entrer une URL.'; return; }
       $('statusUrl').textContent = 'Analyse en cours…';
       $('analyzeUrl').disabled = true;
       $('clearUrl').disabled = true;
+      $('cancelUrl').disabled = false;
       $('url').disabled = true;
       $('resultUrl').textContent = '';
-      const prog = startProgress('Url', 16);
+      const prog = startProgress('Url', 35);
       try {
+        urlController = new AbortController();
+        const to = setTimeout(() => urlController && urlController.abort(), 60000);
         const r = await fetch(`${API}/bpm/url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url }),
+          signal: urlController.signal
         });
+        clearTimeout(to);
+        if (!r.ok) {
+          const txt = await r.text().catch(() => '');
+          throw new Error(`HTTP ${r.status} ${r.statusText}${txt ? ` — ${txt}` : ''}`);
+        }
         const data = await r.json();
         if (data.bpm) {
           $('resultUrl').textContent = `BPM: ${data.bpm}` + (data.confidence !== undefined ? ` (fiabilité ~ ${Math.round(data.confidence*100)}%)` : '');
@@ -187,16 +202,19 @@
           prog.fail();
         }
       } catch (e) {
-        $('resultUrl').textContent = 'Erreur réseau.';
+        $('resultUrl').textContent = `Erreur réseau${e && e.message ? ` — ${e.name === 'AbortError' ? 'requête annulée' : e.message}` : ''}`;
         prog.fail();
       } finally {
         $('statusUrl').textContent = '';
         $('analyzeUrl').disabled = false;
         $('clearUrl').disabled = false;
+        $('cancelUrl').disabled = true;
         $('url').disabled = false;
+        urlController = null;
       }
     });
     $('clearUrl').addEventListener('click', () => { $('url').value = ''; $('resultUrl').textContent = ''; $('statusUrl').textContent = ''; });
+    $('cancelUrl').addEventListener('click', () => { try { urlController && urlController.abort(); } catch(_){} });
 
     $('analyzeFile').addEventListener('click', async () => {
       const f = $('file').files[0];
@@ -204,13 +222,21 @@
       $('statusFile').textContent = 'Analyse en cours…';
       $('analyzeFile').disabled = true;
       $('clearFile').disabled = true;
+      $('cancelFile').disabled = false;
       $('file').disabled = true;
       $('resultFile').textContent = '';
-      const prog = startProgress('File', 12);
+      const prog = startProgress('File', 30);
       try {
         const fd = new FormData();
         fd.append('file', f);
-        const r = await fetch(`${API}/bpm/upload`, { method: 'POST', body: fd });
+        fileController = new AbortController();
+        const to = setTimeout(() => fileController && fileController.abort(), 60000);
+        const r = await fetch(`${API}/bpm/upload`, { method: 'POST', body: fd, signal: fileController.signal });
+        clearTimeout(to);
+        if (!r.ok) {
+          const txt = await r.text().catch(() => '');
+          throw new Error(`HTTP ${r.status} ${r.statusText}${txt ? ` — ${txt}` : ''}`);
+        }
         const data = await r.json();
         if (data.bpm) {
           $('resultFile').textContent = `BPM: ${data.bpm}` + (data.confidence !== undefined ? ` (fiabilité ~ ${Math.round(data.confidence*100)}%)` : '');
@@ -223,16 +249,19 @@
           prog.fail();
         }
       } catch (e) {
-        $('resultFile').textContent = 'Erreur réseau.';
+        $('resultFile').textContent = `Erreur réseau${e && e.message ? ` — ${e.name === 'AbortError' ? 'requête annulée' : e.message}` : ''}`;
         prog.fail();
       } finally {
         $('statusFile').textContent = '';
         $('analyzeFile').disabled = false;
         $('clearFile').disabled = false;
+        $('cancelFile').disabled = true;
         $('file').disabled = false;
+        fileController = null;
       }
     });
     $('clearFile').addEventListener('click', () => { $('file').value = ''; $('resultFile').textContent = ''; $('statusFile').textContent = ''; });
+    $('cancelFile').addEventListener('click', () => { try { fileController && fileController.abort(); } catch(_){} });
   </script>
 </body>
 </html>

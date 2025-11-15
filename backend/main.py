@@ -89,7 +89,12 @@ def _is_direct_media(url: str) -> bool:
 
 def _http_download(url: str, out_path: Path) -> tuple[bool, str]:
     try:
-        with requests.get(url, stream=True, timeout=60) as r:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            "Accept": "*/*",
+        }
+        # timeout=(connect, read)
+        with requests.get(url, headers=headers, stream=True, timeout=(6, 24)) as r:
             r.raise_for_status()
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_path, "wb") as f:
