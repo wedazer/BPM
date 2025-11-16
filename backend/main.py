@@ -179,9 +179,9 @@ async def bpm_from_url(body: URLBody):
 
         workdir = Path(tempfile.mkdtemp(prefix="bpm_url_"))
         out_path = workdir / "input"
+        out_wav = workdir / "audio.wav"
 
         try:
-            # TEMP DIAG: only do preflight + direct download for URLs like MP3/MP4.
             if _is_direct_media(url):
                 ok_h, err_h, info = _preflight_head(url)
                 if not ok_h:
@@ -189,10 +189,26 @@ async def bpm_from_url(body: URLBody):
                 ok, err = _http_download(url, out_path)
                 if not ok:
                     return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": f"Téléchargement direct: {err}"}
-                size = out_path.stat().st_size if out_path.exists() else 0
-                return {"debug": True, "downloaded_bytes": size, "head": info}
+                ok, err = _ensure_wav(out_path, out_wav)
+                if not ok:
+                    if "FFmpeg" in err:
+                        return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": "FFmpeg requis pour conversion."}
+                    return {"error": "Impossible de détecter un tempo clair.", "details": err}
             else:
-                return {"error": "Analyse temporairement limitée aux liens directs de fichiers audio/vidéo (mp3, mp4, etc.)."}
+                ok, err = _download_with_ytdlp(url, out_wav)
+                if not ok:
+                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": err}
+
+            if not out_wav.exists() or out_wav.stat().st_size == 0:
+                return {"error": "Cette vidéo ne contient pas d'audio."}
+
+            bpm, conf, err = _analyze_bpm(out_wav)
+            if bpm is None:
+                return {"error": "Impossible de détecter un tempo clair.", "details": err}
+            resp = {"bpm": round(bpm, 2)}
+            if conf is not None:
+                resp["confidence"] = round(conf, 3)
+            return resp
         finally:
             try:
                 shutil.rmtree(workdir, ignore_errors=True)
