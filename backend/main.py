@@ -172,15 +172,52 @@ async def status():
 
 @app.post("/bpm/url")
 async def bpm_from_url(body: URLBody):
-    # TEMP: diagnostic stub to understand Render 502 behaviour.
-    # For now, we just validate the URL field and echo it back, without
-    # performing any network or audio processing. This lets us see whether
-    # the 502 comes from the endpoint wiring itself or from the heavy work
-    # (requests/FFmpeg/librosa) behind it.
-    url = body.url.strip()
-    if not url:
-        raise HTTPException(status_code=400, detail={"error": "URL manquante."})
-    return {"debug": True, "echo_url": url}
+    try:
+        url = body.url.strip()
+        if not url:
+            raise HTTPException(status_code=400, detail={"error": "URL manquante."})
+
+        workdir = Path(tempfile.mkdtemp(prefix="bpm_url_"))
+        out_wav = workdir / "audio.wav"
+
+        try:
+            if _is_direct_media(url):
+                ok_h, err_h, info = _preflight_head(url)
+                if not ok_h:
+                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": f"Pré-vérification échouée: {err_h}"}
+                download_path = workdir / "input"
+                ok, err = _http_download(url, download_path)
+                if not ok:
+                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": f"Téléchargement direct: {err}"}
+                ok, err = _ensure_wav(download_path, out_wav)
+                if not ok:
+                    if "FFmpeg" in err:
+                        return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": "FFmpeg requis pour conversion."}
+                    return {"error": "Impossible de détecter un tempo clair.", "details": err}
+            else:
+                ok, err = _download_with_ytdlp(url, out_wav)
+                if not ok:
+                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": err}
+
+            if not out_wav.exists() or out_wav.stat().st_size == 0:
+                return {"error": "Cette vidéo ne contient pas d'audio."}
+
+            bpm, conf, err = _analyze_bpm(out_wav)
+            if bpm is None:
+                return {"error": "Impossible de détecter un tempo clair.", "details": err}
+            resp = {"bpm": round(bpm, 2)}
+            if conf is not None:
+                resp["confidence"] = round(conf, 3)
+            return resp
+        finally:
+            try:
+                shutil.rmtree(workdir, ignore_errors=True)
+            except Exception:
+                pass
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": str(e)}
 
 
 @app.post("/bpm/upload")
