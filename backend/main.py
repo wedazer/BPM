@@ -175,52 +175,17 @@ async def status():
 
 @app.post("/bpm/url")
 async def bpm_from_url(body: URLBody):
-    try:
-        url = body.url.strip()
-        if not url:
-            raise HTTPException(status_code=400, detail={"error": "URL manquante."})
-
-        workdir = Path(tempfile.mkdtemp(prefix="bpm_url_"))
-        out_path = workdir / "input"
-        out_wav = workdir / "audio.wav"
-
-        try:
-            if _is_direct_media(url):
-                ok_h, err_h, info = _preflight_head(url)
-                if not ok_h:
-                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": f"Pré-vérification échouée: {err_h}"}
-                ok, err = _http_download(url, out_path)
-                if not ok:
-                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": f"Téléchargement direct: {err}"}
-                ok, err = _ensure_wav(out_path, out_wav)
-                if not ok:
-                    if "FFmpeg" in err:
-                        return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": "FFmpeg requis pour conversion."}
-                    return {"error": "Impossible de détecter un tempo clair.", "details": err}
-            else:
-                ok, err = _download_with_ytdlp(url, out_wav)
-                if not ok:
-                    return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": err}
-
-            if not out_wav.exists() or out_wav.stat().st_size == 0:
-                return {"error": "Cette vidéo ne contient pas d'audio."}
-
-            bpm, conf, err = _analyze_bpm(out_wav)
-            if bpm is None:
-                return {"error": "Impossible de détecter un tempo clair.", "details": err}
-            resp = {"bpm": round(bpm, 2)}
-            if conf is not None:
-                resp["confidence"] = round(conf, 3)
-            return resp
-        finally:
-            try:
-                shutil.rmtree(workdir, ignore_errors=True)
-            except Exception:
-                pass
-    except HTTPException:
-        raise
-    except Exception as e:
-        return {"error": "Impossible d'extraire l'audio depuis ce lien.", "details": str(e)}
+    # NOTE: On l'environnement hébergé (Render gratuit), le traitement complet
+    # par URL (téléchargement + conversion + analyse) est trop lourd et provoque
+    # des erreurs 502. Pour garder un service stable accessible à tous, on
+    # désactive l'analyse par URL et on redirige l'utilisateur vers l'upload.
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail={"error": "URL manquante."})
+    return {
+        "error": "Analyse par URL désactivée sur cette version en ligne.",
+        "details": "Télécharge d'abord le fichier audio (MP3, WAV, etc.) depuis ce lien, puis utilise l'onglet 'Analyser un fichier'."
+    }
 
 
 @app.post("/bpm/upload")
