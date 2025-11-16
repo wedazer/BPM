@@ -147,7 +147,10 @@ def _ensure_wav(input_path: Path, out_wav: Path) -> tuple[bool, str]:
 
 def _analyze_bpm(wav_path: Path) -> tuple[Optional[float], Optional[float], str]:
     try:
-        y, sr = librosa.load(str(wav_path), sr=44100, mono=True)
+        # Limit workload for constrained environments (e.g. Render free tier):
+        # - downsample to 22050 Hz
+        # - load only the first 30 seconds
+        y, sr = librosa.load(str(wav_path), sr=22050, mono=True, duration=30.0)
         if y.size == 0:
             return None, None, "Cette vidéo ne contient pas d'audio."
         tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
